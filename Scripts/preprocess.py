@@ -4,7 +4,6 @@ import os
 import argparse
 from tqdm import tqdm
 import numpy as np
-from transformer.util import save_data
 import torch
 from torchtext.vocab import Vocab
 from torchtext.data import get_tokenizer
@@ -132,7 +131,7 @@ if __name__ == "__main__":
         print("Done!")
 
         if args.SAVE_PATH is None:
-            SAVE_PATH = "./Data/WritingPrompts2SenEmbeddings"
+            SAVE_PATH = "../Data/WritingPrompts2SenEmbeddings"
         else:
             SAVE_PATH = args.SAVE_PATH
 
@@ -195,7 +194,7 @@ if __name__ == "__main__":
 
 
         if args.SAVE_PATH is None:
-            SAVE_PATH = "./Data/Plots2Stories"
+            SAVE_PATH = "../Data/Plots2Stories"
         else:
             SAVE_PATH = args.SAVE_PATH
 

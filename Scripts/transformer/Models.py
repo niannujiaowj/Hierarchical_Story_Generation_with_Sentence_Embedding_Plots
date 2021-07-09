@@ -1,10 +1,9 @@
-import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.nn import (TransformerEncoder, TransformerDecoder,
                       TransformerEncoderLayer, TransformerDecoderLayer)
 
-from transformer.Modules import PositionalEncoding, TokenEmbedding, SenEmbedding, TokenSenEmbedding
+from Scripts.transformer.Modules import PositionalEncoding, TokenEmbedding, SenEmbedding, TokenSenEmbedding
 
 
 

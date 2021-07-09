@@ -1,15 +1,12 @@
 import time
-import argparse
-from tqdm import tqdm
-import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
 
-from transformer import Models
-from transformer.util import Tgt_Out
-from transformer.Modules import Mixture_Loss
-from preprocess import *
+from Scripts.transformer import Models
+from Scripts.transformer import Tgt_Out
+from Scripts.transformer.Modules import Mixture_Loss
+from Scripts.preprocess import *
 
 
 
@@ -221,7 +218,7 @@ if __name__ == '__main__':
 
 
     transformer = Models.Transformer(NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS,
-                                     EMB_SIZE, SRC_VOCAB_SIZE,TGT_VOCAB_SIZE,
+                                     EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
                                      FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
 
     for p in transformer.parameters():

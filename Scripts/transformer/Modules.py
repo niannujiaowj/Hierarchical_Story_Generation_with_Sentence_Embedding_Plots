@@ -2,8 +2,7 @@ import math
 import torch
 import torch.nn as nn
 from torch import Tensor
-from torch.autograd import Variable
-from transformer.util import tgt_unpadding_mask_extention
+from Scripts.transformer import tgt_unpadding_mask_extention
 
 
 class PositionalEncoding(nn.Module):
