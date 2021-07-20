@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 #coding:utf-8
 import json
+import os
 import numpy as np
 from tqdm import tqdm
 from nltk import tokenize
 from rake_nltk import Rake
 import re
 import argparse
+from Scripts.util import *
 
 
 '''import spacy
@@ -17,7 +19,8 @@ for token in doc:
 
 
 def Plots(in_file_story, in_file_sensplit, out_file_name):
-
+    #open("./tmp/Plots/{}".format(out_file_name), 'w').close()
+    #open("./tmp/EntityAnonymizedStories/{}".format(out_file_name), 'w').close()
 
     from allennlp.predictors.predictor import Predictor
     ent_predictor = Predictor.from_path(
@@ -26,34 +29,21 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
         "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2021.03.10.tar.gz")
     srl_predictor = Predictor.from_path(
         "https://storage.googleapis.com/allennlp-public-models/structured-prediction-srl-bert.2020.12.15.tar.gz")
+    try:
+        ent_predictor._model = ent_predictor._model.cuda()
+        conref_predictor._model = conref_predictor._model.cuda()
+        srl_predictor._model = srl_predictor._model.cuda()
+    except:
+        pass
 
+    #tmp_sensplit_file = get_file_from_google_cloud_storage(in_file_sensplit)
     with open(in_file_sensplit, "r") as f1:
-        SenSplitting = json.load(f1)
+        SenSplitting = json.load(f1)[135499:135500]
 
-    def count_line(file_name):
-        with open(file_name) as f:
-            for count, _ in enumerate(f, 1):
-                pass
-        return count
-
-    def get_cluster_indices_list(clusters):
-
-        cluster_indices_list = []
-        for cluster in clusters:
-            cluster_index_list = []
-            for indices in cluster:
-                if indices[0] == indices[1]:
-                    cluster_index_list.append(indices[0])
-                else:
-                    for n in range(indices[1] - indices[0] + 1):
-                        cluster_index_list.append(n + indices[0])
-            cluster_indices_list.append(cluster_index_list)
-        return sum(cluster_indices_list, [])
-
-
+    #tmp_story_file = get_file_from_google_cloud_storage(in_file_story)
     total_story = count_line(in_file_story)
     with open(in_file_story,"r") as f:
-        for n_story, story in tqdm(enumerate(f.readlines())):
+        for n_story, story in tqdm(enumerate(f.readlines()[135499:135500])):
             try:
                 # SRL
                 sens = SenSplitting[n_story]
@@ -64,11 +54,15 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                     sen_slr = [[] for _ in sen_srls["words"]]
                     for tier in sen_srls["verbs"]:
                         for n_tag, tag in enumerate(tier["tags"]):
-                            if tag != 'O':
-                                sen_slr[n_tag].append(str(n_v) + tag[tag.rfind("-") + 1:])
+                            if re.findall(r"ARG[\d\w]*", tag) != []:
+                                sen_slr[n_tag].append(str(n_v) + re.findall(r"ARG[\d\w]*", tag)[0])
+                            elif re.match(r"\w+-V", tag):
+                                sen_slr[n_tag].append(str(n_v) + "V")
+                            else:
+                                pass
                         n_v += 1
                     story_slr += sen_slr
-
+                print("story_slr = ",story_slr )
 
                 # conreference & entity detection
                 conref_dict = conref_predictor.predict(story.replace("<newline> ", ""))
@@ -81,6 +75,8 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                     conref_dict["clusters"].append([[index, index]])
                     conref_dict["clusters"].sort()
 
+                print("conref_dict[clusters] = ",conref_dict["clusters"])
+
                 for n_cluster, cluster in enumerate(conref_dict["clusters"]):
                     for conref in cluster:
                         for n_token, token in enumerate(conref_dict["document"][:-1]):
@@ -89,7 +85,7 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                                     conref_dict["document"][n_token] = "ent{}".format(n_cluster)
                                 elif re.match(r"^\d+V$", story_slr[n_token][0]) is None:
                                     conref_dict["document"][n_token] = "ent{}".format(n_cluster)
-
+                print("conref_dict[document] = ", conref_dict["document"])
 
                 # key words extraction
                 r = Rake()
@@ -102,16 +98,31 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                         if ent_dict["words"][start:start + len(word_list)] == word_list:
                             key_words_indices += [index for index in range(start, start + len(word_list))]
 
+                print("key_words_indices = ",key_words_indices)
 
                 plot = []
+                EntityAnonymizedStory = []
                 # exclude "\n"
                 for n_word, word in enumerate(conref_dict["document"][:-1]):
+                    try: # cut off the same ent group
+                        if word == conref_dict["document"][n_word-1]:
+                            same_group_label = "True"
+                        else:
+                            same_group_label = "False"
+                            EntityAnonymizedStory.append(word)
+                    except:
+                        same_group_label = "False"
+                        EntityAnonymizedStory.append(word)
                     if story_slr[n_word] != [] and \
+                            same_group_label == "False" and \
                             (n_word in key_words_indices[:int(len(conref_dict["document"][:-1])*0.2)] or # reduce key words
                              re.match(r"^\d+V$", story_slr[n_word][0]) != None or
                              re.match(r"^ent\d+$", word) != None):
-                        plot.append("<{}>".format(story_slr[n_word][0]))
+                        for n in range(len(story_slr[n_word])):
+                            plot.append("<{}>".format(story_slr[n_word][n]))
                         plot.append(word)
+                print("plot = ", plot)
+                print("EntityAnonymizedStory = ",EntityAnonymizedStory)
 
             except:
                 # conreference & entity detection
@@ -129,10 +140,8 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                     for conref in cluster:
                         for n_token, token in enumerate(conref_dict["document"][:-1]):
                             if n_token in range(conref[0], conref[1] + 1):
-                                if story_slr[n_token] == []:
                                     conref_dict["document"][n_token] = "ent{}".format(n_cluster)
-                                elif re.match(r"^\d+V$", story_slr[n_token][0]) is None:
-                                    conref_dict["document"][n_token] = "ent{}".format(n_cluster)
+
 
                 # key words extraction
                 r = Rake()
@@ -146,21 +155,41 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
                             key_words_indices += [index for index in range(start, start + len(word_list))]
 
                 plot = []
+                EntityAnonymizedStory = []
                 # exclude "\n"
                 for n_word, word in enumerate(conref_dict["document"][:-1]):
-                    if n_word in key_words_indices[:int(len(conref_dict["document"][:-1])*0.2)] or \
-                            re.match(r"^ent\d+$", word) != None:
+                    try: # cut off the same ent group
+                        if word == conref_dict["document"][n_word-1]:
+                            same_group_label = "True"
+                        else:
+                            same_group_label = "False"
+                            EntityAnonymizedStory.append(word)
+                    except:
+                        same_group_label = "False"
+                        EntityAnonymizedStory.append(word)
+                    if same_group_label == "False" and \
+                            (n_word in key_words_indices[:int(len(conref_dict["document"][:-1])*0.2)] or
+                            re.match(r"^ent\d+$", word) != None):
                         plot.append(word)
 
-
-            with open("Dataset/Plots/{}.txt".format(out_file_name),"a") as f2:
+            if not os.path.exists("Dataset/Plots"):
+                os.makedirs("Dataset/Plots")
+            with open("Dataset/Plots/{}".format(out_file_name),"a") as f2:
                 f2.write(" ".join(plot) + "\n")
 
-            with open("Dataset/EntityAnonymizedStories/{}.txt".format(out_file_name),"a") as f3:
-                f3.write(" ".join(conref_dict["document"]))
+
+            if not os.path.exists("Dataset/EntityAnonymizedStories"):
+                os.makedirs("Dataset/EntityAnonymizedStories")
+            with open("Dataset/EntityAnonymizedStories/{}".format(out_file_name),"a") as f3:
+                f3.write(" ".join(EntityAnonymizedStory))
 
             print("{}/{} is Done!".format(n_story,total_story))
 
+    #subprocess.check_call(
+    #    ['gsutil', 'cp', "./tmp/Plots/{}".format(out_file_name), os.path.join("gs://my_dissertation/Dataset/Plots", out_file_name)])
+
+    #subprocess.check_call(
+    #    ['gsutil', 'cp', "./tmp/EntityAnonymizedStories/{}".format(out_file_name), os.path.join("gs://my_dissertation/Dataset/EntityAnonymizedStories", out_file_name)])
 
 def SenSplitting(in_file,out_file_name):
     '''
@@ -178,13 +207,13 @@ def SenSplitting(in_file,out_file_name):
         for line in tqdm(f.readlines()):
             Sentences.append(tokenize.sent_tokenize(line))
 
-    with open("../Dataset/SenSplitting/{}_target_sensplit.json".format(out_file_name), "w") as w:
+    with open("Dataset/SenSplitting/{}_target_sensplit.json".format(out_file_name), "w") as w:
         json.dump(Sentences,w)
 
 
 
 
-def SenEmbeding(in_file,out_file_name):
+def SenEmbedding(in_file,out_file_name):
     '''
     args: in_file: input file address, json file with sentences split in each story
         out_file_name: output file name, e.g., "train", "valid"
@@ -210,7 +239,7 @@ def SenEmbeding(in_file,out_file_name):
         sentence_embeddings.append(model.encode(Sentences[n]))
 
     # save array of sentence embeddings
-    np.save("../Dataset/SenEmbedding/{}.npy".format(out_file_name), sentence_embeddings)
+    np.save("Dataset/SenEmbedding/{}.npy".format(out_file_name), sentence_embeddings)
 
     # load npy data
     #c = np.load("../Dataset/SenEmbedding/train.npy", allow_pickle=True)
@@ -221,16 +250,17 @@ def SenEmbeding(in_file,out_file_name):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    Plots("Dataset/WritingPrompts/train.wp_target", "Dataset/SenSplitting/train_target_sensplit.json", "train_135499_135500")
+    '''parser = argparse.ArgumentParser()
     parser.add_argument('--MODE', type=str, choices=['Plots', 'SenSplitting', 'SenEmbeding'])
     parser.add_argument('--IN_FILE', type=str)
     parser.add_argument('--IN_FILE_SENSPLIT', type=str)
+    parser.add_argument('--OUT_FILE', type=str)
     parser.add_argument('--OUT_FILE_NAME', type=str)
     args = parser.parse_args()
 
     if args.MODE == 'Plots':
         Plots(args.IN_FILE, args.IN_FILE_SENSPLIT, args.OUT_FILE_NAME)
-        #Plots("Dataset/WritingPrompts/smallest.wp_target", "smallest.txt.wp_target")
         #Plots("Dataset/WritingPrompts/train.wp_target", "Dataset/SenSplitting/train_target_sensplit.json", "train")
         #Plots("Dataset/WritingPrompts/valid.wp_target", "Dataset/SenSplitting/valid_target_sensplit.json", "valid")
         #Plots("Dataset/WritingPrompts/test.wp_target", "Dataset/SenSplitting/test_target_sensplit.json", "test")
@@ -245,7 +275,7 @@ if __name__ == '__main__':
         SenEmbeding(args.IN_FILE, args.OUT_FILE_NAME)
         #SenEmbeding("../Dataset/SenSplitting/train_target_sensplit.json", "train")
         #SenEmbeding("../Dataset/SenSplitting/valid_target_sensplit.json", "valid")
-        #SenEmbeding("Dataset/SenSplitting/test_target_sensplit.json", "test")
+        #SenEmbeding("Dataset/SenSplitting/test_target_sensplit.json", "test")'''
 
 
 

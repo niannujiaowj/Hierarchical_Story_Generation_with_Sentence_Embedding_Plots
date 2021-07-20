@@ -2,7 +2,7 @@ import math
 import torch
 import torch.nn as nn
 from torch import Tensor
-from Scripts.transformer import tgt_unpadding_mask_extention
+from Scripts.transformer.util import tgt_unpadding_mask_extention
 
 
 class PositionalEncoding(nn.Module):
@@ -66,7 +66,7 @@ class TokenSenEmbedding(nn.Module):
         src_emb = []
         for sen in src:
             for batch in sen:
-                if batch < 100000:
+                if batch < 10000000:
                     src_emb.append(self.src_tok_emb(batch).tolist())
                 else:
                     src_emb.append(SenEmbedding_dict[batch.item()])
@@ -74,15 +74,18 @@ class TokenSenEmbedding(nn.Module):
 
 
 
-class Mixture_Loss(nn.Module):
+class SenEmbedding_Loss(nn.Module):
     def __init__(self):
-        super(Mixture_Loss, self).__init__()
+        super(SenEmbedding_Loss, self).__init__()
         self.mse = nn.MSELoss()
         self.cos = nn.CosineEmbeddingLoss()
+        self.bce = nn.BCEWithLogitsLoss()
 
-    def forward(self, logits: Tensor, tgt_out: Tensor, tgt_padding_mask: Tensor):
+    def forward(self, logits: Tensor, is_pad: Tensor, tgt_out: Tensor, tgt_padding_mask: Tensor,
+                lambda1: float, lambda2: float, lambda3: float, lambda4: float, lambda5: float):
         '''
         :param logits: (max number of sentences in stories, batch size, dimension of sentence embedding)
+        :param is_pad: (max number of sentences in stories, batch size, 1)
         :param tgt_out: (max number of sentences in stories, batch size, dimension of sentence embedding)
         :param tgt_padding_mask: (batch size, max number of sentences in stories), masked position == True, else == False
         :return: a float loss figure in a tensor, tensor([])
@@ -108,9 +111,18 @@ class Mixture_Loss(nn.Module):
         loss_delta = self.mse(delta_list_logits,delta_list_tgt_out )
 
         # Delta of delta loss: delta 1 vs delta 2
-        loss_delta_of_delta = (self.mse(delta_of_delta_list(delta_list_logits), delta_of_delta_list(delta_list_tgt_out))/100                                     )
+        loss_delta_of_delta = (self.mse(delta_of_delta_list(delta_list_logits), delta_of_delta_list(delta_list_tgt_out))/1000                                     )
 
-        loss = loss_mse + loss_cos + loss_delta + loss_delta_of_delta
+        # BCE Loss: is pad sentence embedding or not
+        is_pad = is_pad.view(is_pad.size()[0],is_pad.size()[1])
+        zero = torch.zeros_like(is_pad.transpose(0,1))
+        one = torch.ones_like(is_pad.transpose(0,1))
+        # tgt_padding_mask (length of sentence, batch size)
+        tgt_padding_mask = torch.where(tgt_padding_mask == False, zero, one).transpose(0,1)
+        loss_bce = self.bce(is_pad, tgt_padding_mask)
+
+        loss = lambda1 * loss_mse + lambda2 * loss_cos + lambda3 * loss_delta + lambda4 * loss_delta_of_delta + lambda5 * loss_bce
+
         return loss
 
 

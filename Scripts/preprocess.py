@@ -5,8 +5,9 @@ import argparse
 from tqdm import tqdm
 import numpy as np
 import torch
-from torchtext.vocab import Vocab
+from torchtext.vocab import vocab
 from torchtext.data import get_tokenizer
+
 
 
 def build_vocab(filepath, tokenizer):
@@ -23,7 +24,13 @@ def build_vocab(filepath, tokenizer):
         for string_ in tqdm(f):
             counter.update(tokenizer(string_))
     # build a PyTorch vocabulary with indices for tokens
-    return Vocab(counter, specials=['<unk>', '<pad>', '<bos>', '<eos>'])
+    specials = {'<unk>':0, '<pad>':1, '<bos>':2, '<eos>':3}
+    vocabulary = vocab(counter)
+    for k,v in specials.items():
+        vocabulary.insert_token(k,v)
+    vocabulary.set_default_index(0)
+    return vocabulary
+
 
 
 
@@ -66,7 +73,7 @@ def data_process(filepath_src:str, filepath_tgt: str, tokenizer, vocab_src, voca
         target = np.load(filepath_tgt, allow_pickle=True)
         SenEmbedding_dict = {}
         SenIndices = [[] for _ in range(len(target))]
-        n_sen = 100000 # the vocabulary size of plots is 67932
+        n_sen = 10000000 # the vocabulary size of plots is 67932??
         for n_story,story in enumerate(target):
             for sen in story:
                 SenEmbedding_dict[n_sen] = sen
@@ -98,7 +105,6 @@ def data_process(filepath_src:str, filepath_tgt: str, tokenizer, vocab_src, voca
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
     parser.add_argument('MODE', type=str, choices=['WritingPrompts2SenEmbeddings', 'Plots2Stories'])
     parser.add_argument('TRAIN_SRC',type=str)
     parser.add_argument('--TRAIN_SRC_SENEMBEDDINGS', type=str)
@@ -108,73 +114,74 @@ if __name__ == "__main__":
     parser.add_argument('TEST_SRC',type=str)
     parser.add_argument('TEST_TGT',type=str)
     parser.add_argument('--SAVE_PATH', type=str)
-
-
     args = parser.parse_args()
+
     en_tokenizer = get_tokenizer("basic_english")
     if args.MODE == "WritingPrompts2SenEmbeddings":
         print("Building source vocabulary...")
         src_vocab = build_vocab(args.TRAIN_SRC, en_tokenizer)
         print("Done!")
 
+        print("Building target vocabulary...")
+        counter = Counter()
+        specials = {'<unpad>':0, '<pad>':1}
+        tgt_vocab = vocab(counter)
+        for k,v in specials.items():
+            tgt_vocab.insert_token(k,v)
+        print("Done!")
+
         print("Processing training data...")
         train_data, train_SenIndices, train_SenEmbedding_dict = data_process(args.TRAIN_SRC, args.TRAIN_TGT, en_tokenizer,
                                                                              src_vocab, src_vocab, args.MODE)
         print("Done!")
-        print("Processing valid data...")
-        '''valid_data, valid_SenIndices, valid_SenEmbedding_dict = data_process(args.VALID_SRC, args.VALID_TGT, en_tokenizer,
+
+        '''print("Processing valid data...")
+        valid_data, valid_SenIndices, valid_SenEmbedding_dict = data_process(args.VALID_SRC, args.VALID_TGT, en_tokenizer,
                                                                                 src_vocab, src_vocab, args.MODE)
         print("Done!")
+        
         print("Processing test data...")
         test_data, test_SenIndices, test_SenEmbedding_dict = data_process(args.TEST_SRC, args.TEST_TGT, en_tokenizer, 
-                                                                          src_vocab, src_vocab, args.MODE)'''
-        print("Done!")
+                                                                          src_vocab, src_vocab, args.MODE)
+        print("Done!")'''
 
         if args.SAVE_PATH is None:
-            SAVE_PATH = "../Data/WritingPrompts2SenEmbeddings"
+            SAVE_PATH = "Data/WritingPrompts2SenEmbeddings"
         else:
             SAVE_PATH = args.SAVE_PATH
 
         if not os.path.exists(SAVE_PATH):
             os.makedirs(SAVE_PATH)
 
-
-        '''save_data(src_vocab, SAVE_PATH)
-        save_data(train_data, SAVE_PATH)
-        #save_data(valid_data, SAVE_PATH)
-        #save_data(test_data, SAVE_PATH)
-        save_data(train_SenIndices, SAVE_PATH)
-        #save_data(valid_SenIndices, SAVE_PATH)
-        #save_data(test_SenIndices, SAVE_PATH)
-        save_data(train_SenEmbedding_dict, SAVE_PATH)
-        #save_data(valid_SenEmbedding_dict, SAVE_PATH)
-        #save_data(test_SenEmbedding_dict, SAVE_PATH)'''
-
-        print("Saving src_vocab..")
+        print("Saving data...")
         torch.save(src_vocab, SAVE_PATH + "/src_vocab.pt")
-        print("Saving train_data...")
+        print("src_vocab saved!")
+        torch.save(tgt_vocab, SAVE_PATH + "/tgt_vocab.pt")
+        print("tgt_vocab saved!")
         torch.save(train_data, SAVE_PATH + "/train_data.pt")
-        '''print("Saving valid_data...")
-        torch.save(valid_data, SAVE_PATH + "/valid_data.pt")
-        print("Saving test_data...")
-        torch.save(test_data, SAVE_PATH + "/test_data.pt")'''
-        print("Saving train_SenIndices...")
+        print("train_data saved!")
+        #torch.save(valid_data, SAVE_PATH + "/valid_data.pt")
+        print("valid_data saved!")
+        #torch.save(test_data, SAVE_PATH + "/test_data.pt")
+        print("test_data saved!")
         torch.save(train_SenIndices, SAVE_PATH + "/train_SenIndices.pt")
-        '''print("Saving valid_SenIndices...")
-        torch.save(valid_SenIndices, SAVE_PATH + "/valid_SenIndices.pt")
-        print("Saving test_SenIndices...")
-        torch.save(test_SenIndices, SAVE_PATH + "/test_SenIndices.pt")'''
-        print("Saving train_SenEmbedding_dict...")
+        print("train_SenIndices saved!")
+        #torch.save(valid_SenIndices, SAVE_PATH + "/valid_SenIndices.pt")
+        print("valid_SenIndices saved!")
+        #torch.save(test_SenIndices, SAVE_PATH + "/test_SenIndices.pt")
+        print("test_SenIndices saved!")
         torch.save(train_SenEmbedding_dict, SAVE_PATH + "/train_SenEmbedding_dict.pt")
-        '''print("Saving valid_SenEmbedding_dict...")
-        torch.save(valid_SenEmbedding_dict, SAVE_PATH + "/valid_SenEmbedding_dict.pt")
-        print("Saving test_SenEmbedding_dict...")
-        torch.save(test_SenEmbedding_dict, SAVE_PATH + "/test_SenEmbedding_dict.pt")'''
+        print("train_SenEmbedding_dict saved!")
+        #torch.save(valid_SenEmbedding_dict, SAVE_PATH + "/valid_SenEmbedding_dict.pt")
+        print("valid_SenEmbedding_dict saved!")
+        #torch.save(test_SenEmbedding_dict, SAVE_PATH + "/test_SenEmbedding_dict.pt")
+        print("test_SenEmbedding_dict saved!")
 
     else:
         print("Building source vocabulary...")
         src_vocab = build_vocab(args.TRAIN_SRC, en_tokenizer)
         print("Done!")
+
         print("Building target vocabulary...")
         tgt_vocab = build_vocab(args.TRAIN_TGT, en_tokenizer)
         print("Done!")
@@ -183,10 +190,12 @@ if __name__ == "__main__":
         train_data = data_process(args.TRAIN_SRC, args.TRAIN_TGT, en_tokenizer, src_vocab, tgt_vocab,
                                   args.MODE, args.TRAIN_SRC_SENEMBEDDINGS)
         print("Done!")
-        print("Processing valid data...")
-        '''valid_data = data_process(args.VALID_SRC, args.VALID_TGT, en_tokenizer, src_vocab, tgt_vocab,
+
+        '''print("Processing valid data...")
+        valid_data = data_process(args.VALID_SRC, args.VALID_TGT, en_tokenizer, src_vocab, tgt_vocab,
                                   args.MODE, args.TRAIN_SRC_SENEMBEDDINGS)
         print("Done!")
+        
         print("Processing test data...")
         test_data = data_process(args.TEST_SRC, args.TEST_TGT, en_tokenizer, src_vocab, tgt_vocab,
                                  args.MODE, args.TRAIN_SRC_SENEMBEDDINGS)
@@ -194,26 +203,21 @@ if __name__ == "__main__":
 
 
         if args.SAVE_PATH is None:
-            SAVE_PATH = "../Data/Plots2Stories"
+            SAVE_PATH = "Data/Plots2Stories"
         else:
             SAVE_PATH = args.SAVE_PATH
 
-        '''save_data(src_vocab, SAVE_PATH)
-        save_data(tgt_vocab, SAVE_PATH)
-        save_data(train_data, SAVE_PATH)
-        save_data(valid_data, SAVE_PATH)
-        save_data(test_data, SAVE_PATH)'''
-
-        print("Saving src_vocab...")
+        print("Saving data...")
         torch.save(src_vocab, SAVE_PATH + "/src_vocab.pt")
-        print("Saving tgt_vocab...")
+        print("src_vocab saved!")
         torch.save(tgt_vocab, SAVE_PATH + "/tgt_vocab.pt")
-        print("Saving train_data...")
+        print("tgt_vocab saved!")
         torch.save(train_data, SAVE_PATH + "/train_data.pt")
-        '''print("Saving valid_data...")
-        torch.save(valid_data, SAVE_PATH + "/valid_data.pt")
-        print("Saving test_data...")
-        torch.save(test_data, SAVE_PATH + "/test_data.pt")'''
+        print("train_data saved!")
+        '''torch.save(valid_data, SAVE_PATH + "/valid_data.pt")
+        print("valid_data saved!")
+        torch.save(test_data, SAVE_PATH + "/test_data.pt")
+        print("test_data saved!")'''
 
 
 

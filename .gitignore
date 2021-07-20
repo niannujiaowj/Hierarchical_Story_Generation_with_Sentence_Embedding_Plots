@@ -11,11 +11,17 @@ gen
 /Data/*
 /Dataset/*
 /venv/*
+/venv2/*
+/Checkpoints/*
 
 
 
 !/Dataset/
 !/Data/
 !/venv/
+!/venv2/
+!/Checkpoints/
 
 *.DS_Store
+*/Scripts/temp*.py
+!/Scripts/temp*.py

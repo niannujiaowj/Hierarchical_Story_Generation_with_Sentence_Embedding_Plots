@@ -1,4 +1,4 @@
-python preprocess.py \
+python Scripts/preprocess.py \
 WritingPrompts2SenEmbeddings \
 "Dataset/WritingPrompts/small.wp_source" \
 "Dataset/SenEmbedding/small.npy" \

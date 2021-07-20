@@ -1,4 +1,3 @@
-import os
 import torch
 from torch import Tensor
 
@@ -25,24 +24,24 @@ def count_line(file_name):
     return pad_positions"""
 
 
-# get gold target output when generating sentence embeddings
+# get gold target output of sentence embeddings
 def Tgt_Out(tgt: Tensor, tgt_SenEmbedding_dict: str):
     '''
     :param tgt: tensor (max number of sentences in stories, batch size)
     :param tgt_SenEmbedding_dict: file path
     :return: tensor (max number of sentences in stories, batch size, dimension of sentence embedding)
     '''
-
     tgt_SenEmbedding_dict = torch.load(tgt_SenEmbedding_dict)
     PadSenEmbedding = torch.randn(len(tgt_SenEmbedding_dict[100000]))
-    tgt_out = [[] for _ in range(tgt.size()[0])]
-    for n, sen in enumerate(tgt):
+    tgt_out = [[] for _ in range(tgt.size()[0]-1)] # exclude <bos> token
+    for n, sen in enumerate(tgt[1:]): # exclude <bos> token
         for index in sen:
             if index.tolist() == 1:
                 tgt_out[n].append(PadSenEmbedding.tolist())
             else:
                 tgt_out[n].append(tgt_SenEmbedding_dict[index.tolist()].tolist())
     return torch.tensor(tgt_out)
+
 
 
 # get the unpadding matrix
@@ -60,12 +59,6 @@ def tgt_unpadding_mask_extention(tgt_padding_mask:Tensor, emb_size: int):
                 tgt_padding_mask.transpose(0,1)[n_sen:n_sen+1,n_batch:n_batch+1]
     return ~tgt_unpadding_mask_extention.to(torch.bool)
 
-def save_data(data, save_path: str):
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    variable_name = [k for k, v in locals().items() if v == data][0]
-    print(variable_name)
-    print("Saving {} ...".format(variable_name))
-    torch.save(data, save_path + "/{}.pt".format(variable_name))
-    print("Data Saved in {}/{}.pt".format(save_path,variable_name))
+
+
 
