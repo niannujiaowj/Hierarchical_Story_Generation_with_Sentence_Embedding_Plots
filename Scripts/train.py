@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.append(os.path.dirname(sys.path[0]))
+
 import time
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
@@ -8,6 +12,7 @@ from Scripts.transformer.util import Tgt_Out
 from Scripts.transformer.Modules import SenEmbedding_Loss
 from Scripts.util import load_checkpoint
 from Scripts.preprocess import *
+
 
 
 
@@ -95,6 +100,7 @@ def train_epoch(model, train_iter, optimizer):
     losses = 0
     # src (max length of tokens in prompts, batch size), tgt (max number of sentences in stories, batch size)
     for idx, (src, tgt) in enumerate(train_iter):
+        print("Train: batch {} out of {}".format(idx+1,len(train_iter)))
         src = src.to(DEVICE)
         tgt = tgt.to(DEVICE)
 
@@ -130,6 +136,7 @@ def evaluate(model, val_iter):
     model.eval()
     losses = 0
     for idx, (src, tgt) in enumerate(val_iter):
+        print("Valid: batch {} out of {}".format(idx+1, len(val_iter)))
         src = src.to(DEVICE)
         tgt = tgt.to(DEVICE)
 
@@ -154,7 +161,7 @@ def evaluate(model, val_iter):
 
 if __name__ == '__main__':
 
-    '''parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument('MODE', type=str, choices=['WritingPrompts2SenEmbeddings', 'Plots2Stories'])
     parser.add_argument('SRC_VOCAB', type=str)
     parser.add_argument('TGT_VOCAB', type=str)
@@ -168,8 +175,8 @@ if __name__ == '__main__':
                         default="Data/WritingPrompts2SenEmbeddings/valid_SenEmbedding_dict.pt")
     parser.add_argument('--TEST_SENEMBEDDING_DICT', type=str,
                         default="Data/WritingPrompts2SenEmbeddings/test_SenEmbedding_dict.pt")
-    parser.add_argument('--NUM_ENCODER_LAYERS', type=int, default = 3)
-    parser.add_argument('--NUM_DECODER_LAYERS', type=int, default = 3)
+    parser.add_argument('--NUM_ENCODER_LAYERS', type=int, default = 12)
+    parser.add_argument('--NUM_DECODER_LAYERS', type=int, default = 12)
     parser.add_argument('--EMB_SIZE', type=int, default = 768)
     parser.add_argument('--FFN_HID_DIM', type=int, default = 768)
     parser.add_argument('--DROPOUT', type=float, default = 0.1)
@@ -220,46 +227,6 @@ if __name__ == '__main__':
     PAD_IDX = src_vocab['<pad>'] # 1
     BOS_IDX = src_vocab['<bos>'] # 2
     EOS_IDX = src_vocab['<eos>'] # 3
-    src_vocab.set_default_index(UNK_IDX)
-    tgt_vocab.set_default_index(UNK_IDX)
-    '''
-
-    torch.manual_seed(0)
-
-    MODE = "WritingPrompts2SenEmbeddings"
-    src_vocab = torch.load("Data/WritingPrompts2SenEmbeddings/src_vocab.pt")
-    tgt_vocab = torch.load("Data/WritingPrompts2SenEmbeddings/tgt_vocab.pt")
-    train_data = torch.load("Data/WritingPrompts2SenEmbeddings/train_data.pt")
-    SAVE_PATH = "Checkpoints"
-    BOS_IDX = 2
-    EOS_IDX = 3
-    PAD_IDX = 1
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    TRAIN_SENEMBEDDING_DICT = torch.load("Data/WritingPrompts2SenEmbeddings/train_SenEmbedding_dict.pt")
-    NUM_ENCODER_LAYERS = 3
-    NUM_DECODER_LAYERS = 3
-    EMB_SIZE = 768
-    SRC_VOCAB_SIZE = len(src_vocab)
-    TGT_VOCAB_SIZE = len(tgt_vocab) - 1
-    FFN_HID_DIM = 768
-    DROPOUT = 0.1
-    NHEAD = 8
-    BATCH_SIZE = 50
-    NUM_EPOCHS = 1
-    RESUME_TRAINING = False
-    #CHECKPOINT_PATH = args.CHECKPOINT_PATH
-    LAMBDA1 = 1.
-    LAMBDA2 = 1.
-    LAMBDA3 = 5.
-    LAMBDA4 = 1.
-    LAMBDA5 = 0.4
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    UNK_IDX = src_vocab['<unk>']  # 0
-    PAD_IDX = src_vocab['<pad>']  # 1
-    BOS_IDX = src_vocab['<bos>']  # 2
-    EOS_IDX = src_vocab['<eos>']  # 3
-    src_vocab.set_default_index(UNK_IDX)
-    tgt_vocab.set_default_index(UNK_IDX)
 
 
 
@@ -270,7 +237,7 @@ if __name__ == '__main__':
     # varies according to each batch.
     train_iter = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
     #valid_iter = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
-    #test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
+    #test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=Flase, collate_fn=generate_batch, drop_last=True)
 
 
 

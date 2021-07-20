@@ -42,16 +42,20 @@ f.close()
 
 f.close()'''"""
 
-#train1 = np.load("Dataset/SenEmbedding/train_c_1_100000.npy", mmap_mode=None, allow_pickle=True)
+'''train1 = np.load("Dataset/SenEmbedding/train_100000_150000.npy", mmap_mode=None, allow_pickle=True)
 #train2 = np.load("Dataset/SenEmbedding/train_c_100000_final.npy", mmap_mode=None, allow_pickle=True)
 
-#print(train1.shape, train2.shape)
+print(train1.shape)'''
 
-import json
-with open("Dataset/SenSplitting/train_target_sensplit.json") as f:
-    Sentences = json.load(f)[100000:]
-print(type(Sentences))
-print(len(Sentences))
+'''import json
 
+with open("Dataset/SenEmbedding/train_100000_150000.json") as f:
+    data = json.load(f)
 
+np.save("Dataset/SenEmbedding/train_100000_150000.npy",data)'''
 
+final = np.load("Dataset/SenEmbedding/train_100000_150000.npy",allow_pickle=True)
+print("final",final)
+
+for i in final:
+    print(i)
