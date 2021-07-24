@@ -1,7 +1,8 @@
 python Scripts/preprocess.py \
 WritingPrompts2SenEmbeddings \
-"Dataset/WritingPrompts/small.wp_source" \
-"Dataset/SenEmbedding/small.npy" \
+TRAIN \
+"Dataset/WritingPrompts/train.wp_source" \
+"Dataset/SenEmbedding/train.npz" \
 "Dataset/WritingPrompts/valid.wp_source" \
 "Dataset/SenEmbedding/valid.npy" \
 "Dataset/WritingPrompts/test.wp_source" \

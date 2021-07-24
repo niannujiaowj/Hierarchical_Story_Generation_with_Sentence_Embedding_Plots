@@ -38,12 +38,12 @@ def Plots(in_file_story, in_file_sensplit, out_file_name):
 
     #tmp_sensplit_file = get_file_from_google_cloud_storage(in_file_sensplit)
     with open(in_file_sensplit, "r") as f1:
-        SenSplitting = json.load(f1)[135499:135500]
+        SenSplitting = json.load(f1)[183996:183997]
 
     #tmp_story_file = get_file_from_google_cloud_storage(in_file_story)
     total_story = count_line(in_file_story)
     with open(in_file_story,"r") as f:
-        for n_story, story in tqdm(enumerate(f.readlines()[135499:135500])):
+        for n_story, story in tqdm(enumerate(f.readlines()[183996:183997])):
             try:
                 # SRL
                 sens = SenSplitting[n_story]
@@ -250,7 +250,7 @@ def SenEmbedding(in_file,out_file_name):
 
 
 if __name__ == '__main__':
-    Plots("Dataset/WritingPrompts/train.wp_target", "Dataset/SenSplitting/train_target_sensplit.json", "train_135499_135500")
+    Plots("Dataset/WritingPrompts/train.wp_target", "Dataset/SenSplitting/train_target_sensplit.json", "train_183996_183997")
     '''parser = argparse.ArgumentParser()
     parser.add_argument('--MODE', type=str, choices=['Plots', 'SenSplitting', 'SenEmbeding'])
     parser.add_argument('--IN_FILE', type=str)

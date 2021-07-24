@@ -1,4 +1,5 @@
 import math
+import h5py
 import torch
 import torch.nn as nn
 from torch import Tensor
@@ -35,21 +36,24 @@ class SenEmbedding(nn.Module):
     def __init__(self, emb_size):
         super(SenEmbedding, self).__init__()
         self.emb_size = emb_size
+        self.PadEmbedding = torch.randn(self.emb_size)
     def forward(self, tgt: Tensor, PAD_IDX: int):
         '''
         :param tgt: (max number of sentences in stories, batch size)
         :param PAD_IDX: 1
         :return: (max number of sentences in stories, batch size, dimension of sentence embedding)
         '''
-        tgt_emb = []
+        '''tgt_emb = []
         for sen in tgt:
             for batch in sen:
                 if batch == PAD_IDX:
                     emb = torch.zeros(self.emb_size).tolist()
                 else:
                     emb = torch.randn(self.emb_size).tolist()
-                tgt_emb.append(emb)
-        return torch.FloatTensor(tgt_emb).view(tgt.size()[0],tgt.size()[1],self.emb_size)
+                tgt_emb.append(emb)'''
+        tgt_emb = torch.stack(
+            [torch.randn(self.emb_size) if index.item() != PAD_IDX else self.PadEmbedding for _ in tgt for index in _])
+        return tgt_emb.view(tgt.size()[0],tgt.size()[1],-1)
 
 
 class TokenSenEmbedding(nn.Module):
@@ -57,20 +61,17 @@ class TokenSenEmbedding(nn.Module):
         super(TokenSenEmbedding, self).__init__()
         self.src_tok_emb = TokenEmbedding(src_vocab_size, emb_size)
         self.emb_size = emb_size
-    def forward(self, src: Tensor, SenEmbedding_dict):
+    def forward(self, src: Tensor, SenEmbedding_dict_file_path: str):
         '''
         :param src: (max number of tokens in plots + max number of sentences in stories, batch size)
-        :param SenEmbedding_dict: dictionary of SenEmbedding
-        :return: (max number of sentences in stories, batch size, dimension of sentence embedding)
+        :param SenEmbedding_dict_file_path: filr path of SenEmbedding dictionary
+        :return: (max number of tokens in plots + max number of sentences in stories, batch size, dimension of sentence embedding)
         '''
-        src_emb = []
-        for sen in src:
-            for batch in sen:
-                if batch < 10000000:
-                    src_emb.append(self.src_tok_emb(batch).tolist())
-                else:
-                    src_emb.append(SenEmbedding_dict[batch.item()])
-        return torch.FloatTensor(src_emb).view(src.size()[0], src.size()[1], self.emb_size)
+
+        output = torch.stack(
+            [self.src_tok_emb(index) if index < 10000000 else torch.tensor(h5py.File(
+                SenEmbedding_dict_file_path,"r")[str(index.item())][...]) for _ in src for index in _])
+        return output.view(src.size()[0],src.size()[1],-1)
 
 
 
@@ -123,6 +124,11 @@ class SenEmbedding_Loss(nn.Module):
 
         loss = lambda1 * loss_mse + lambda2 * loss_cos + lambda3 * loss_delta + lambda4 * loss_delta_of_delta + lambda5 * loss_bce
 
+        #print("loss_mse",loss_mse)
+        #print("loss_cos",loss_cos)
+        #print("loss_delta",loss_delta)
+        #print("loss_delta_of_delta",loss_delta_of_delta)
+        #print("loss_bce",loss_bce)
         return loss
 
 

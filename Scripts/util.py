@@ -36,8 +36,8 @@ def extract_file_name(filepath):
 # load checkpoint to resume training
 def load_checkpoint(checkpoint_fpath, model, optimizer):
     checkpoint = torch.load(checkpoint_fpath)
-    model.load_state_dict(checkpoint['state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer'])
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     return model, optimizer, checkpoint['epoch'], checkpoint['val_loss'].item()
 
 

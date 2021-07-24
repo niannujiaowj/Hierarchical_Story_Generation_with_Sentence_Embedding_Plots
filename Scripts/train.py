@@ -99,8 +99,7 @@ def train_epoch(model, train_iter, optimizer):
     model.train()
     losses = 0
     # src (max length of tokens in prompts, batch size), tgt (max number of sentences in stories, batch size)
-    for idx, (src, tgt) in enumerate(train_iter):
-        print("Train: batch {} out of {}".format(idx+1,len(train_iter)))
+    for src, tgt in tqdm(train_iter):
         src = src.to(DEVICE)
         tgt = tgt.to(DEVICE)
 
@@ -110,16 +109,16 @@ def train_epoch(model, train_iter, optimizer):
         if MODE == "WritingPrompts2SenEmbeddings":
             # logits (max number of sentences in stories, batch size, dimension of sentence embedding)
             logits, is_pad = model(src, tgt_input, src_mask, tgt_mask,
-                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, TRAIN_SENEMBEDDING_DICT)
+                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, TRAIN_SENEMBEDDING_DICT_FILE_PATH)
             #print("logits",logits,logits.size())
             #print("is_pad",is_pad,is_pad.size())
             optimizer.zero_grad()
-            tgt_out = Tgt_Out(tgt, "Data/WritingPrompts2SenEmbeddings/train_SenEmbedding_dict.pt")
+            tgt_out = Tgt_Out(tgt, TRAIN_SENEMBEDDING_DICT_FILE_PATH)
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
                                                src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX,
-                                               TRAIN_SENEMBEDDING_DICT)
+                                               TRAIN_SENEMBEDDING_DICT_FILE_PATH)
             # exlude the <bos> token in each story
             optimizer.zero_grad()
             tgt_out = tgt[1:,:]
@@ -135,8 +134,7 @@ def train_epoch(model, train_iter, optimizer):
 def evaluate(model, val_iter):
     model.eval()
     losses = 0
-    for idx, (src, tgt) in enumerate(val_iter):
-        print("Valid: batch {} out of {}".format(idx+1, len(val_iter)))
+    for src, tgt in tqdm(val_iter):
         src = src.to(DEVICE)
         tgt = tgt.to(DEVICE)
 
@@ -146,12 +144,12 @@ def evaluate(model, val_iter):
 
         if MODE =="WritingPrompts2SenEmbeddings":
             logits, is_pad = model(src, tgt_input, src_mask, tgt_mask,
-                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT)
-            tgt_out = Tgt_Out(tgt, "Data/WritingPrompts2SenEmbeddings/valid_SenEmbedding_dict.pt")
+                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT_FILE_PATH)
+            tgt_out = Tgt_Out(tgt, VALID_SENEMBEDDING_DICT_FILE_PATH)
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
-                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT)
+                           src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT_FILE_PATH)
             tgt_out = tgt[1:,:]
             loss = loss_fn(logits.reshape(-1, logits.shape[-1]), tgt_out.reshape(-1))
         losses += loss.item()
@@ -170,11 +168,11 @@ if __name__ == '__main__':
     parser.add_argument('TEST_DATA', type=str)
     parser.add_argument('--SAVE_PATH', type=str, default="Checkpoints")
     parser.add_argument('--TRAIN_SENEMBEDDING_DICT', type=str,
-                        default="Data/WritingPrompts2SenEmbeddings/train_SenEmbedding_dict.pt")
+                        default="Data/WritingPrompts2SenEmbeddings/train_SenEmbedding_dict.hdf5")
     parser.add_argument('--VALID_SENEMBEDDING_DICT', type=str,
-                        default="Data/WritingPrompts2SenEmbeddings/valid_SenEmbedding_dict.pt")
+                        default="Data/WritingPrompts2SenEmbeddings/valid_SenEmbedding_dict.hdf5")
     parser.add_argument('--TEST_SENEMBEDDING_DICT', type=str,
-                        default="Data/WritingPrompts2SenEmbeddings/test_SenEmbedding_dict.pt")
+                        default="Data/WritingPrompts2SenEmbeddings/test_SenEmbedding_dict.hdf5")
     parser.add_argument('--NUM_ENCODER_LAYERS', type=int, default = 12)
     parser.add_argument('--NUM_DECODER_LAYERS', type=int, default = 12)
     parser.add_argument('--EMB_SIZE', type=int, default = 768)
@@ -187,8 +185,8 @@ if __name__ == '__main__':
     parser.add_argument('--CHECKPOINT_PATH',type=str)
     parser.add_argument('--LAMBDA1',type=float, default = 1.0)
     parser.add_argument('--LAMBDA2',type=float, default = 1.0)
-    parser.add_argument('--LAMBDA3',type=float, default = 5.)
-    parser.add_argument('--LAMBDA4',type=float, default = 1.0)
+    parser.add_argument('--LAMBDA3',type=float, default = 3.)
+    parser.add_argument('--LAMBDA4',type=float, default = 2.0)
     parser.add_argument('--LAMBDA5',type=float, default = 0.1)
     args = parser.parse_args()
     
@@ -201,8 +199,8 @@ if __name__ == '__main__':
     #valid_data = torch.load(args.VALID_DATA)
     #test_data = torch.load(args.TEST_DATA)
     SAVE_PATH = args.SAVE_PATH
-    TRAIN_SENEMBEDDING_DICT = torch.load(args.TRAIN_SENEMBEDDING_DICT)
-    #VALID_SENEMBEDDING_DICT = torch.load(args.VALID_SENEMBEDDING_DICT)
+    TRAIN_SENEMBEDDING_DICT_FILE_PATH = args.TRAIN_SENEMBEDDING_DICT
+    #VALID_SENEMBEDDING_DICT_FILE_PATH = args.VALID_SENEMBEDDING_DICT
     #TEST_SENEMBEDDING_DICT = torch.load(args.TEST_SENEMBEDDING_DICT)
     NUM_ENCODER_LAYERS = args.NUM_ENCODER_LAYERS
     NUM_DECODER_LAYERS = args.NUM_DECODER_LAYERS
@@ -215,7 +213,10 @@ if __name__ == '__main__':
     BATCH_SIZE = args.BATCH_SIZE
     NUM_EPOCHS = args.NUM_EPOCHS
     RESUME_TRAINING = args.RESUME_TRAINING
-    CHECKPOINT_PATH = args.CHECKPOINT_PATH
+    if args.CHECKPOINT_PATH:
+        CHECKPOINT_PATH =  os.path.join(args.CHECKPOINT_PATH +"/{}.tar".format(MODE))
+    else:
+        CHECKPOINT_PATH = os.path.join(args.SAVE_PATH +"/{}.tar".format(MODE))
     LAMBDA1 = args.LAMBDA1
     LAMBDA2 = args.LAMBDA2
     LAMBDA3 = args.LAMBDA3
@@ -232,25 +233,15 @@ if __name__ == '__main__':
 
 
 
-
     # *_iter is composed of tuples. One tuple one batch. Each batch is a (source, target) tuple pair. The max length
     # varies according to each batch.
     train_iter = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
     #valid_iter = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
     #test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=Flase, collate_fn=generate_batch, drop_last=True)
 
-
-
     transformer = Models.Seq2SeqTransformer(NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS,
                                      EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
                                      FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
-
-    for p in transformer.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
-
-    transformer = transformer.to(DEVICE)
-
 
     if MODE == "WritingPrompts2SenEmbeddings":
         loss_fn = SenEmbedding_Loss()
@@ -260,22 +251,33 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 
     valid_loss_min = np.Inf
+    start_epoch = 1
+
     if RESUME_TRAINING:
-        model, optimizer, start_epoch, valid_loss_min = load_checkpoint(args.CHECKPOINT_PATH, transformer, optimizer)
+        transformer, optimizer, start_epoch, valid_loss_min = load_checkpoint(CHECKPOINT_PATH, transformer, optimizer)
+
+    for p in transformer.parameters():
+        if p.dim() > 1:
+            nn.init.xavier_uniform_(p)
+
+    transformer = transformer.to(DEVICE)
+
 
     if not os.path.exists(SAVE_PATH):
         os.makedirs(SAVE_PATH)
 
-    for epoch in tqdm(range(1, NUM_EPOCHS + 1)):
+    for epoch in tqdm(range(start_epoch, NUM_EPOCHS + 1)):
         start_time = time.time()
+        print("Processing training data...")
         train_loss = train_epoch(transformer, train_iter, optimizer)
         end_time = time.time()
+        print("Processing valid data...")
         #val_loss = evaluate(transformer, valid_iter)
         print((f"Epoch: {epoch}, Train loss: {train_loss:.3f}, "
                #f"Val loss: {val_loss:.3f}, "
                f"Epoch time = {(end_time - start_time):.3f}s"))
 
-        # save checkpoint for resume training
+        # save checkpoint for resume tra    ining
         torch.save({
             'epoch': epoch,
             'model_state_dict': transformer.state_dict(),

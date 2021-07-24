@@ -8,4 +8,3 @@ WritingPrompts2SenEmbeddings \
 --BATCH_SIZE 512 \
 --NUM_EPOCHS 16
 
-
