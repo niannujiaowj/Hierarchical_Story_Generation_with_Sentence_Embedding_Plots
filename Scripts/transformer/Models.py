@@ -1,8 +1,14 @@
+import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.nn import Transformer
 from Scripts.transformer.Modules import PositionalEncoding, TokenEmbedding, SenEmbedding, TokenSenEmbedding
-
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    DEVICE = xm.xla_device() # google colab tpu
+except:
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 
@@ -19,7 +25,7 @@ class Seq2SeqTransformer(nn.Module):
                                        dropout=dropout)
 
         self.positional_encoding = PositionalEncoding(emb_size, dropout=dropout)
-        self.generator = nn.Linear(emb_size, tgt_vocab_size)
+        self.generator = nn.Linear(emb_size, tgt_vocab_size,device=DEVICE)
         # !!
         self.mode = mode
         if  self.mode == "WritingPrompts2SenEmbeddings":
@@ -44,6 +50,7 @@ class Seq2SeqTransformer(nn.Module):
 
         outs = self.transformer(src_emb, tgt_emb, src_mask, tgt_mask, None, src_padding_mask,
                                         tgt_padding_mask, memory_key_padding_mask)
+
         # !!
         if self.mode == "WritingPrompts2SenEmbeddings":
             return outs, self.generator(outs)

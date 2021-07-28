@@ -5,6 +5,6 @@ WritingPrompts2SenEmbeddings \
 "Data/WritingPrompts2SenEmbeddings/train_data.pt" \
 "Data/WritingPrompts2SenEmbeddings/valid_data.pt" \
 "Data/WritingPrompts2SenEmbeddings/test_data.pt" \
---BATCH_SIZE 512 \
---NUM_EPOCHS 16
+--BATCH_SIZE 1 \
+--NUM_EPOCHS 2
 

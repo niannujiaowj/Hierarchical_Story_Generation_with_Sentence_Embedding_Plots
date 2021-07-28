@@ -80,17 +80,19 @@ def data_process(filepath_src:str, filepath_tgt: str, tokenizer, vocab_src, voca
 
         if re.match(".*npz$", filepath_tgt):
             n = 0
+            n_story = 0
             for file in target.files:
                 n += len(target[file])
             SenIndices = [[] for _ in range(n)]
-            with h5py.File(file_path_SenEmbedding_dict, "w") as f:
-                print("Saving sentence embedding dictionary...")
-                for file in tqdm(target.files):
-                    for n_story, story in tqdm(enumerate(target[file])):
-                        for sen in story:
-                            f.create_dataset(str(n_sen), data = sen)
-                            SenIndices[n_story].append(n_sen)
-                            n_sen += 1
+            #with h5py.File(file_path_SenEmbedding_dict, "w") as f:
+                #print("Saving sentence embedding dictionary...")
+            for file in tqdm(target.files):
+                for story in tqdm(target[file]):
+                    for sen in story:
+                        #f.create_dataset(str(n_sen), data = sen)
+                        SenIndices[n_story].append(n_sen)
+                        n_sen += 1
+                    n_story += 1
                 print("Done!")
         else:
             SenIndices = [[] for _ in range(len(target))]

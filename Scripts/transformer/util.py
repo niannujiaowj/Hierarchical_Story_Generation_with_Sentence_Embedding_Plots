@@ -1,5 +1,11 @@
 import torch
 from torch import Tensor
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    DEVICE = xm.xla_device() # google colab tpu
+except:
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 # count the number of lines in a file
@@ -19,20 +25,13 @@ def Tgt_Out(tgt: Tensor, tgt_SenEmbedding_dict_file_path: str):
     '''
 
     import h5py
-    PadSenEmbedding = torch.randn(len(h5py.File(tgt_SenEmbedding_dict_file_path,"r")["10000000"][...]))
+    PadSenEmbedding = torch.randn(len(h5py.File(tgt_SenEmbedding_dict_file_path,"r")["10000000"][...]),device=DEVICE)
 
     # tgt[1:] is to exclude <bos> token
     tgt_out = torch.stack(
-        [PadSenEmbedding if index.item() == 1 else torch.tensor(h5py.File(
-            tgt_SenEmbedding_dict_file_path, "r")[str(index.item())][...]) for _ in tgt[1:] for index in _])
-    '''tgt_out = [[] for _ in range(tgt.size()[0]-1)] # exclude <bos> token
-    for n, sen in enumerate(tgt[1:]): # exclude <bos> token
-        for index in sen:
-            if index.tolist() == 1:
-                tgt_out[n].append(PadSenEmbedding.tolist())
-            else:
-                tgt_out[n].append(tgt_SenEmbedding_dict[index.tolist()].tolist())'''
-    return tgt_out.view(tgt.size()[0]-1,tgt.size()[1],-1)
+        [PadSenEmbedding if int(index.item()) == 1 else torch.tensor(h5py.File(
+            tgt_SenEmbedding_dict_file_path, "r")[str(int(index.item()))][...],device=DEVICE) for _ in tgt[1:] for index in _])
+    return tgt_out.view(tgt.size()[0]-1,tgt.size()[1],-1).to(DEVICE)
 
 
 
@@ -45,16 +44,9 @@ def tgt_unpadding_mask_extention(tgt_padding_mask:Tensor, emb_size: int):
             unpadding = True, padding = False
     '''
     tgt_unpadding_mask_extention = ~torch.stack(
-        [torch.zeros(emb_size, dtype=torch.bool) if index.item() == False else torch.ones(emb_size, dtype=torch.bool)
-         for _ in tgt_padding_mask for index in _])
-    return tgt_unpadding_mask_extention.view(tgt_padding_mask.size()[1],tgt_padding_mask.size()[0],-1)
-
-    '''tgt_unpadding_mask_extention = torch.zeros(tgt_padding_mask.size()[1],tgt_padding_mask.size()[0],emb_size)
-    for n_sen, sen in  enumerate(tgt_unpadding_mask_extention):
-        for n_batch, batch in enumerate(sen):
-            tgt_unpadding_mask_extention[n_sen:n_sen+1,n_batch:n_batch+1,:] = \
-                tgt_padding_mask.transpose(0,1)[n_sen:n_sen+1,n_batch:n_batch+1]
-    return ~tgt_unpadding_mask_extention.to(torch.bool)'''
+        [torch.zeros(emb_size, dtype=torch.bool, device=DEVICE) if index.item() == False else
+         torch.ones(emb_size, dtype=torch.bool, device=DEVICE) for _ in tgt_padding_mask for index in _])
+    return tgt_unpadding_mask_extention.view(tgt_padding_mask.size()[1],tgt_padding_mask.size()[0],-1).to(DEVICE)
 
 
 

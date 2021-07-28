@@ -10,10 +10,15 @@ from torch.utils.data import DataLoader
 from Scripts.transformer import Models
 from Scripts.transformer.util import Tgt_Out
 from Scripts.transformer.Modules import SenEmbedding_Loss
-from Scripts.util import load_checkpoint
+from Scripts.util import load_checkpoint, EarlyStopping
 from Scripts.preprocess import *
 
-
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    DEVICE = xm.xla_device() # google colab tpu
+except:
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 
@@ -62,7 +67,7 @@ def generate_square_subsequent_mask(sz,device):
     # masked_fill(mask == 0, float('-inf')), 0. --> '-inf'
     # masked_fill(mask == 1, float(0.0)), 1. --> 0.
     mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-    return mask
+    return mask.to(DEVICE)
 
 
 
@@ -91,7 +96,7 @@ def create_mask(src, tgt):
     src_padding_mask = (src == PAD_IDX).transpose(0, 1)
     tgt_padding_mask = (tgt == PAD_IDX).transpose(0, 1)
 
-    return src_mask, tgt_mask, src_padding_mask, tgt_padding_mask
+    return src_mask.to(DEVICE), tgt_mask.to(DEVICE), src_padding_mask.to(DEVICE), tgt_padding_mask.to(DEVICE)
 
 
 
@@ -113,7 +118,8 @@ def train_epoch(model, train_iter, optimizer):
             #print("logits",logits,logits.size())
             #print("is_pad",is_pad,is_pad.size())
             optimizer.zero_grad()
-            tgt_out = Tgt_Out(tgt, TRAIN_SENEMBEDDING_DICT_FILE_PATH)
+            tgt_out = Tgt_Out(tgt, TRAIN_SENEMBEDDING_DICT_FILE_PATH).to(DEVICE)
+
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
@@ -145,7 +151,7 @@ def evaluate(model, val_iter):
         if MODE =="WritingPrompts2SenEmbeddings":
             logits, is_pad = model(src, tgt_input, src_mask, tgt_mask,
                            src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT_FILE_PATH)
-            tgt_out = Tgt_Out(tgt, VALID_SENEMBEDDING_DICT_FILE_PATH)
+            tgt_out = Tgt_Out(tgt, VALID_SENEMBEDDING_DICT_FILE_PATH).to(DEVICE)
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
@@ -166,7 +172,8 @@ if __name__ == '__main__':
     parser.add_argument('TRAIN_DATA', type=str)
     parser.add_argument('VALID_DATA', type=str)
     parser.add_argument('TEST_DATA', type=str)
-    parser.add_argument('--SAVE_PATH', type=str, default="Checkpoints")
+    parser.add_argument('--CHECKPOINT_SVAE_PATH', type=str, default="Checkpoints")
+    parser.add_argument('--BEST_MODEL_SAVE_PATH',type=str, default="BestModel")
     parser.add_argument('--TRAIN_SENEMBEDDING_DICT', type=str,
                         default="Data/WritingPrompts2SenEmbeddings/train_SenEmbedding_dict.hdf5")
     parser.add_argument('--VALID_SENEMBEDDING_DICT', type=str,
@@ -182,12 +189,12 @@ if __name__ == '__main__':
     parser.add_argument('--BATCH_SIZE', type=int, default = 128)
     parser.add_argument('--NUM_EPOCHS', type=int, default = 16)
     parser.add_argument('--RESUME_TRAINING', action='store_true')
-    parser.add_argument('--CHECKPOINT_PATH',type=str)
     parser.add_argument('--LAMBDA1',type=float, default = 1.0)
     parser.add_argument('--LAMBDA2',type=float, default = 1.0)
     parser.add_argument('--LAMBDA3',type=float, default = 3.)
     parser.add_argument('--LAMBDA4',type=float, default = 2.0)
     parser.add_argument('--LAMBDA5',type=float, default = 0.1)
+    parser.add_argument('--PATIENCE', type=int, default=20)
     args = parser.parse_args()
     
     torch.manual_seed(0)
@@ -196,11 +203,10 @@ if __name__ == '__main__':
     src_vocab = torch.load(args.SRC_VOCAB)
     tgt_vocab = torch.load(args.TGT_VOCAB)
     train_data = torch.load(args.TRAIN_DATA)
-    #valid_data = torch.load(args.VALID_DATA)
-    #test_data = torch.load(args.TEST_DATA)
-    SAVE_PATH = args.SAVE_PATH
+    valid_data = torch.load(args.VALID_DATA)
+    test_data = torch.load(args.TEST_DATA)
     TRAIN_SENEMBEDDING_DICT_FILE_PATH = args.TRAIN_SENEMBEDDING_DICT
-    #VALID_SENEMBEDDING_DICT_FILE_PATH = args.VALID_SENEMBEDDING_DICT
+    VALID_SENEMBEDDING_DICT_FILE_PATH = args.VALID_SENEMBEDDING_DICT
     #TEST_SENEMBEDDING_DICT = torch.load(args.TEST_SENEMBEDDING_DICT)
     NUM_ENCODER_LAYERS = args.NUM_ENCODER_LAYERS
     NUM_DECODER_LAYERS = args.NUM_DECODER_LAYERS
@@ -213,17 +219,16 @@ if __name__ == '__main__':
     BATCH_SIZE = args.BATCH_SIZE
     NUM_EPOCHS = args.NUM_EPOCHS
     RESUME_TRAINING = args.RESUME_TRAINING
-    if args.CHECKPOINT_PATH:
-        CHECKPOINT_PATH =  os.path.join(args.CHECKPOINT_PATH +"/{}.tar".format(MODE))
-    else:
-        CHECKPOINT_PATH = os.path.join(args.SAVE_PATH +"/{}.tar".format(MODE))
+    CHECKPOINT_PATH = args.CHECKPOINT_SVAE_PATH
+    BEST_MODEL_PATH = args.BEST_MODEL_SAVE_PATH
     LAMBDA1 = args.LAMBDA1
     LAMBDA2 = args.LAMBDA2
     LAMBDA3 = args.LAMBDA3
     LAMBDA4 = args.LAMBDA4
     LAMBDA5 = args.LAMBDA5
-    
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    PATIENCE = args.PATIENCE
+
+
     UNK_IDX = src_vocab['<unk>'] # 0
     PAD_IDX = src_vocab['<pad>'] # 1
     BOS_IDX = src_vocab['<bos>'] # 2
@@ -236,8 +241,8 @@ if __name__ == '__main__':
     # *_iter is composed of tuples. One tuple one batch. Each batch is a (source, target) tuple pair. The max length
     # varies according to each batch.
     train_iter = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
-    #valid_iter = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
-    #test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=Flase, collate_fn=generate_batch, drop_last=True)
+    valid_iter = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
+    test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, collate_fn=generate_batch, drop_last=True)
 
     transformer = Models.Seq2SeqTransformer(NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS,
                                      EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
@@ -250,11 +255,12 @@ if __name__ == '__main__':
 
     optimizer = torch.optim.Adam(transformer.parameters(), lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 
-    valid_loss_min = np.Inf
     start_epoch = 1
+    EarlyStopping_counter = 0
 
     if RESUME_TRAINING:
-        transformer, optimizer, start_epoch, valid_loss_min = load_checkpoint(CHECKPOINT_PATH, transformer, optimizer)
+        transformer, optimizer, start_epoch = load_checkpoint(CHECKPOINT_PATH, transformer, optimizer)
+        EarlyStopping_counter = torch.load("{}/{}_EarlyStopping_counter.pt".format(BEST_MODEL_PATH,MODE))
 
     for p in transformer.parameters():
         if p.dim() > 1:
@@ -263,8 +269,10 @@ if __name__ == '__main__':
     transformer = transformer.to(DEVICE)
 
 
-    if not os.path.exists(SAVE_PATH):
-        os.makedirs(SAVE_PATH)
+    if not os.path.exists(CHECKPOINT_PATH):
+        os.makedirs(CHECKPOINT_PATH)
+    if not os.path.exists(BEST_MODEL_PATH):
+        os.makedirs(BEST_MODEL_PATH)
 
     for epoch in tqdm(range(start_epoch, NUM_EPOCHS + 1)):
         start_time = time.time()
@@ -272,21 +280,24 @@ if __name__ == '__main__':
         train_loss = train_epoch(transformer, train_iter, optimizer)
         end_time = time.time()
         print("Processing valid data...")
-        #val_loss = evaluate(transformer, valid_iter)
+        val_loss = evaluate(transformer, valid_iter)
         print((f"Epoch: {epoch}, Train loss: {train_loss:.3f}, "
-               #f"Val loss: {val_loss:.3f}, "
+               f"Val loss: {val_loss:.3f}, "
                f"Epoch time = {(end_time - start_time):.3f}s"))
 
-        # save checkpoint for resume tra    ining
+        # save checkpoint for resume training
         torch.save({
             'epoch': epoch,
             'model_state_dict': transformer.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
             'train_loss': train_loss,
-            #'val_loss': val_loss
-        }, SAVE_PATH+"/{}.tar".format(MODE))
+            'val_loss': val_loss
+        }, CHECKPOINT_PATH+"/{}.tar".format(MODE))
 
-        # save the best model
-        '''if val_loss <= valid_loss_min:
-            valid_loss_min = val_loss
-            torch.save(transformer.state_dict(),"BestModel/{}.pt".format(MODE))'''
+        # save best model and perform early stopping
+        early_stopping = EarlyStopping(patience=PATIENCE, verbose=True, counter=EarlyStopping_counter, path=BEST_MODEL_PATH)
+        early_stopping(val_loss, transformer, MODE)
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+
