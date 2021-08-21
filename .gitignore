@@ -13,7 +13,8 @@ gen
 /venv/*
 /venv2/*
 /Checkpoints/*
-
+/Inference/*
+/Evaluation/*
 
 
 !/Dataset/
@@ -21,7 +22,9 @@ gen
 !/venv/
 !/venv2/
 !/Checkpoints/
+!/Inference/
+!/Evaluation/
 
 *.DS_Store
 */Scripts/temp*.py
-!/Scripts/temp*.py
+!/Scripts/MyModel/temp.py

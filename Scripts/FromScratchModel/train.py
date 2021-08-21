@@ -6,12 +6,13 @@ import time
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader
+import h5py
 
-from Scripts.transformer import Models
-from Scripts.transformer.util import Tgt_Out
-from Scripts.transformer.Modules import SenEmbedding_Loss
-from Scripts.util import load_checkpoint, EarlyStopping
-from Scripts.preprocess import *
+from Scripts.MyModel.transformer import Models
+from Scripts.MyModel.transformer import Tgt_Out
+from Scripts.MyModel.transformer import SenEmbedding_Loss
+from Scripts.MyModel.util import load_checkpoint, EarlyStopping
+from Scripts.MyModel.preprocess import *
 
 try:
     import torch_xla
@@ -113,14 +114,29 @@ def train_epoch(model, train_iter, optimizer):
 
         if MODE == "WritingPrompts2SenEmbeddings":
             # logits (max number of sentences in stories, batch size, dimension of sentence embedding)
+            start_time = time.time()
             logits, is_pad = model(src, tgt_input, src_mask, tgt_mask,
                            src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, TRAIN_SENEMBEDDING_DICT_FILE_PATH)
             #print("logits",logits,logits.size())
             #print("is_pad",is_pad,is_pad.size())
-            optimizer.zero_grad()
-            tgt_out = Tgt_Out(tgt, TRAIN_SENEMBEDDING_DICT_FILE_PATH).to(DEVICE)
+            end_time = time.time()
+            print("Calling model",end_time-start_time)
 
+            start_time = time.time()
+            optimizer.zero_grad()
+            end_time = time.time()
+            print("optimizer", end_time - start_time)
+
+            start_time = time.time()
+            tgt_out = Tgt_Out(tgt, TRAIN_SENEMBEDDING_DICT).to(DEVICE)
+            end_time = time.time()
+            print("getting ground truth", end_time - start_time)
+
+            start_time = time.time()
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
+            end_time = time.time()
+            print("loss", end_time - start_time)
+
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
                                                src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX,
@@ -151,7 +167,7 @@ def evaluate(model, val_iter):
         if MODE =="WritingPrompts2SenEmbeddings":
             logits, is_pad = model(src, tgt_input, src_mask, tgt_mask,
                            src_padding_mask, tgt_padding_mask, src_padding_mask, PAD_IDX, VALID_SENEMBEDDING_DICT_FILE_PATH)
-            tgt_out = Tgt_Out(tgt, VALID_SENEMBEDDING_DICT_FILE_PATH).to(DEVICE)
+            tgt_out = Tgt_Out(tgt, VALID_SENEMBEDDING_DICT).to(DEVICE)
             loss = loss_fn(logits, is_pad, tgt_out, tgt_padding_mask, LAMBDA1, LAMBDA2, LAMBDA3, LAMBDA4, LAMBDA5)
         else:
             logits = model(src, tgt_input, src_mask, tgt_mask,
@@ -207,7 +223,7 @@ if __name__ == '__main__':
     test_data = torch.load(args.TEST_DATA)
     TRAIN_SENEMBEDDING_DICT_FILE_PATH = args.TRAIN_SENEMBEDDING_DICT
     VALID_SENEMBEDDING_DICT_FILE_PATH = args.VALID_SENEMBEDDING_DICT
-    #TEST_SENEMBEDDING_DICT = torch.load(args.TEST_SENEMBEDDING_DICT)
+    #TEST_SENEMBEDDING_DICT_FILE_PATH = args.TEST_SENEMBEDDING_DICT
     NUM_ENCODER_LAYERS = args.NUM_ENCODER_LAYERS
     NUM_DECODER_LAYERS = args.NUM_DECODER_LAYERS
     EMB_SIZE = args.EMB_SIZE
@@ -227,7 +243,16 @@ if __name__ == '__main__':
     LAMBDA4 = args.LAMBDA4
     LAMBDA5 = args.LAMBDA5
     PATIENCE = args.PATIENCE
+    TRAIN_SENEMBEDDING_DICT = h5py.File(TRAIN_SENEMBEDDING_DICT_FILE_PATH, "r")
+    VALID_SENEMBEDDING_DICT = h5py.File(VALID_SENEMBEDDING_DICT_FILE_PATH, "r")
+    #TEST_SENEMBEDDING_DICT = h5py.File(TEST_SENEMBEDDING_DICT_FILE_PATH, "r")
 
+    print("type of dic",type(TRAIN_SENEMBEDDING_DICT))
+
+    '''for file in TRAIN_SENEMBEDDING_DICT.keys():
+        print("file",file)
+        for i in file:
+            print("item in file",i)'''
 
     UNK_IDX = src_vocab['<unk>'] # 0
     PAD_IDX = src_vocab['<pad>'] # 1
@@ -244,10 +269,12 @@ if __name__ == '__main__':
     valid_iter = DataLoader(valid_data, batch_size=BATCH_SIZE, shuffle=True, collate_fn=generate_batch, drop_last=True)
     test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, collate_fn=generate_batch, drop_last=True)
 
+    start_time = time.time()
     transformer = Models.Seq2SeqTransformer(NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS,
-                                     EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
-                                     FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
-
+                                            EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
+                                            FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
+    end_time = time.time()
+    print("defining the model",end_time-start_time)
     if MODE == "WritingPrompts2SenEmbeddings":
         loss_fn = SenEmbedding_Loss()
     else:

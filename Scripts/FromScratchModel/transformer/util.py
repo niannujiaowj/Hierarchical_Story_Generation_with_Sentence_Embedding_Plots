@@ -17,21 +17,21 @@ def count_line(file_name):
 
 
 # get gold target output of sentence embeddings
-def Tgt_Out(tgt: Tensor, tgt_SenEmbedding_dict_file_path: str):
+def Tgt_Out(tgt: Tensor, tgt_SenEmbedding_dict):
     '''
     :param tgt: tensor (max number of sentences in stories, batch size)
-    :param tgt_SenEmbedding_dict: file path
+    :param tgt_SenEmbedding_dict: hdf5 file
     :return: tensor (max number of sentences in stories - 1, batch size, dimension of sentence embedding)
     '''
 
     import h5py
-    PadSenEmbedding = torch.randn(len(h5py.File(tgt_SenEmbedding_dict_file_path,"r")["10000000"][...]),device=DEVICE)
+    PadSenEmbedding = torch.randn(768,device=DEVICE)
 
     # tgt[1:] is to exclude <bos> token
     tgt_out = torch.stack(
-        [PadSenEmbedding if int(index.item()) == 1 else torch.tensor(h5py.File(
-            tgt_SenEmbedding_dict_file_path, "r")[str(int(index.item()))][...],device=DEVICE) for _ in tgt[1:] for index in _])
+        [PadSenEmbedding if int(index.item()) == 1 else torch.tensor(tgt_SenEmbedding_dict[str(int(index.item()))][...],device=DEVICE) for _ in tgt[1:] for index in _])
     return tgt_out.view(tgt.size()[0]-1,tgt.size()[1],-1).to(DEVICE)
+    #return torch.randn(tgt.size()[0]-1,tgt.size()[1],768)
 
 
 

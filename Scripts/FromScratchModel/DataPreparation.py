@@ -7,8 +7,7 @@ from tqdm import tqdm
 from nltk import tokenize
 from rake_nltk import Rake
 import re
-import argparse
-from Scripts.util import *
+from Scripts.MyModel.util import *
 
 
 '''import spacy

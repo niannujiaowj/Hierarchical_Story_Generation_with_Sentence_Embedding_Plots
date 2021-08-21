@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 from torch.nn import Transformer
-from Scripts.transformer.Modules import PositionalEncoding, TokenEmbedding, SenEmbedding, TokenSenEmbedding
+import time
+from Scripts.MyModel.transformer import PositionalEncoding, TokenEmbedding, SenEmbedding, TokenSenEmbedding
 try:
     import torch_xla
     import torch_xla.core.xla_model as xm
@@ -30,9 +31,9 @@ class Seq2SeqTransformer(nn.Module):
         self.mode = mode
         if  self.mode == "WritingPrompts2SenEmbeddings":
             self.src_tok_emb = TokenEmbedding(src_vocab_size, emb_size)
-            self.tgt_tok_emb = SenEmbedding(emb_size) # ????need detach??????
+            self.tgt_tok_emb = SenEmbedding(emb_size)
         else:
-            self.src_tok_emb = TokenSenEmbedding(src_vocab_size, emb_size)
+            self.src_tok_emb = TokenSenEmbedding(src_vocab_size, emb_size) # ????need detach??????
             self.tgt_tok_emb = TokenEmbedding(tgt_vocab_size, emb_size)
         self.batch_size = batch_size
 
@@ -42,14 +43,24 @@ class Seq2SeqTransformer(nn.Module):
                 tgt_padding_mask: Tensor, memory_key_padding_mask: Tensor, PAD_IDX: int, SenEmbedding_dict_file_path: str):
         # !!
         if self.mode == "WritingPrompts2SenEmbeddings":
+            start_time = time.time()
             src_emb = self.positional_encoding(self.src_tok_emb(src))
+            end_time = time.time()
+            print("src_emb", end_time - start_time)
+
+            start_time = time.time()
             tgt_emb = self.positional_encoding(self.tgt_tok_emb(tgt, PAD_IDX))
+            end_time = time.time()
+            print("tgt_emb", end_time - start_time)
         else:
             src_emb = self.positional_encoding(self.src_tok_emb(src,SenEmbedding_dict_file_path))
             tgt_emb = self.positional_faencoding(self.tgt_tok_emb(tgt))
 
+        start_time = time.time()
         outs = self.transformer(src_emb, tgt_emb, src_mask, tgt_mask, None, src_padding_mask,
                                         tgt_padding_mask, memory_key_padding_mask)
+        end_time = time.time()
+        print("outs", end_time - start_time)
 
         # !!
         if self.mode == "WritingPrompts2SenEmbeddings":

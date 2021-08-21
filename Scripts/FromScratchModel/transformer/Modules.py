@@ -3,7 +3,7 @@ import h5py
 import torch
 import torch.nn as nn
 from torch import Tensor
-from Scripts.transformer.util import tgt_unpadding_mask_extention
+from Scripts.MyModel.transformer.util import tgt_unpadding_mask_extention
 
 try:
     import torch_xla

@@ -1,11 +1,9 @@
-import argparse
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
 from train import generate_square_subsequent_mask
-from Scripts.transformer import Models
+from Scripts.MyModel.transformer import Models
 
 def generate_batch(data):
     '''
@@ -150,8 +148,8 @@ if __name__ == '__main__':
     if MODE == 'WritingPrompts2SenEmbeddings':
         state_dict = torch.load(MODEL_PATH)["model_state_dict"]
         model = Models.Seq2SeqTransformer(NUM_ENCODER_LAYERS, NUM_DECODER_LAYERS,
-                                     EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
-                                     FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
+                                          EMB_SIZE, SRC_VOCAB_SIZE, TGT_VOCAB_SIZE,
+                                          FFN_HID_DIM, DROPOUT, NHEAD, MODE, BATCH_SIZE)
         model.load_state_dict(state_dict)
         test_iter = DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False, collate_fn=generate_batch, drop_last=True)
         translate(model,test_iter)
